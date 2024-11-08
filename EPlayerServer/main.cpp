@@ -257,7 +257,7 @@ int HttpParser(const Buffer& data, Buffer* keyToGenerate) {
 				printf("no result sql=%s ret=%d 用户名已存在\n", (char*)sql, ret);
 				return -9;
 			}
-			keyvalue_mysql db_key;
+			keyvalue_mysql db_key,value_key;
 			sql = db_key.Query("KeyValue=\"" + key + "\"");
 			ret = m_db->Exec(sql, result, db_key);
 			if (ret != 0) {
@@ -273,6 +273,10 @@ int HttpParser(const Buffer& data, Buffer* keyToGenerate) {
 			value.Fields["sign"]->LoadFromStr(sign);
 			value.Fields["sign"]->Condition = SQL_INSERT;
 			auto key1 = result.front();
+			if (key1->Fields["IsUsed"]->Value.Integer == 1) {
+				printf("key已被使用过，已失效\n", (char*)sql, ret);
+				return -23;
+			}
 			int dayT = key1->Fields["DayType"]->Value.Integer;
 			Buffer expiration_time = addDaysToCurrentDate(dayT);
 			std::cout << "expiration:"<<expiration_time << std::endl;
@@ -285,6 +289,16 @@ int HttpParser(const Buffer& data, Buffer* keyToGenerate) {
 			if (ret != 0) {
 				printf("sql=%s ret=%d\n", (char*)sql, ret);
 				return -12;
+			}
+			value_key.Fields["KeyValue"]->LoadFromStr(key);
+			value_key.Fields["KeyValue"]->Condition = SQL_CONDITION;
+			value_key.Fields["IsUsed"]->LoadFromStr("1");
+			value_key.Fields["IsUsed"]->Condition = SQL_MODIFY;
+			sql = db_key.Modify(value_key);
+			ret = m_db->Exec(sql);
+			if (ret != 0) {
+				printf("sql=%s ret=%d 修改key[IsUsed]失败\n", (char*)sql, ret);
+				return -22;
 			}
 			return 0;
 		}
@@ -328,6 +342,10 @@ int HttpParser(const Buffer& data, Buffer* keyToGenerate) {
 			/*value.Fields["user_name"]->LoadFromStr(user);
 			value.Fields["user_name"]->Condition = SQL_INSERT;*/
 			auto key1 = result2.front();
+			if (key1->Fields["IsUsed"]->Value.Integer == 1) {
+				printf("key已被使用过，已失效\n", (char*)sql, ret);
+				return -21;
+			}
 			int dayT = key1->Fields["DayType"]->Value.Integer;
 			Buffer expiration_time = addDaysToDateTime(*DateToModify, dayT);
 			value.Fields["user_name"]->LoadFromStr(user);
@@ -340,10 +358,16 @@ int HttpParser(const Buffer& data, Buffer* keyToGenerate) {
 				printf("sql=%s ret=%d\n", (char*)sql, ret);
 				return -17;
 			}
-			value.Fields["KeyValue"]->LoadFromStr(key);
-			value.Fields["KeyValue"]->Condition = SQL_CONDITION;
-			value.Fields["IsUsed"]->LoadFromStr("1");
-			value.Fields["IsUsed"]->Condition=SQL_MODIFY;
+			value_key.Fields["KeyValue"]->LoadFromStr(key);
+			value_key.Fields["KeyValue"]->Condition = SQL_CONDITION;
+			value_key.Fields["IsUsed"]->LoadFromStr("1");
+			value_key.Fields["IsUsed"]->Condition=SQL_MODIFY;
+			sql = db_key.Modify(value_key);
+			ret = m_db->Exec(sql);
+			if (ret != 0) {
+				printf("sql=%s ret=%d 修改key[IsUsed]失败\n", (char*)sql, ret);
+				return -18;
+			}
 			return 0;
 		}
 		else if (uri == "generateKey") {
